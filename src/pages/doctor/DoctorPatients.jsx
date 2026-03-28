@@ -24,7 +24,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { patientService } from '@/database/patientService';
 import { hospitalService } from '@/database/hospitalService';
 
-const initialPatients = [];
+const initialPatients = [
+  { id: 1, name: 'Eleanor Vance', age: 78, status: 'Critical', lastActive: '2 mins ago', condition: 'Arrhythmia', hr: 110, bp: '145/90', riskScore: 92, aiNotes: 'Sustained tachycardia detected.', ambulanceStatus: 'En Route', risks: { sepsis: 12, cardiac: 88, respiratory: 15 } },
+  { id: 2, name: 'Robert Ford', age: 82, status: 'Inactive', lastActive: '49 hours ago', condition: 'Hypertension', hr: 72, bp: '130/85', riskScore: 85, aiNotes: 'No vitals logged for 48h.', ambulanceStatus: 'None', risks: { sepsis: 45, cardiac: 62, respiratory: 40 } },
+  { id: 3, name: 'Martha Wayne', age: 65, status: 'Stable', lastActive: '1 hour ago', condition: 'Post-op Recovery', hr: 68, bp: '118/75', riskScore: 24, aiNotes: 'Recovery progressing normally.', ambulanceStatus: 'None', risks: { sepsis: 0.5, cardiac: 12, respiratory: 2 } },
+  { id: 4, name: 'John Doe', age: 71, status: 'Stable', lastActive: '3 hours ago', condition: 'Diabetes Type 2', hr: 75, bp: '122/80', riskScore: 35, aiNotes: 'Blood glucose levels stable.', ambulanceStatus: 'None', risks: { sepsis: 5, cardiac: 18, respiratory: 8 } },
+  { id: 5, name: 'Alice Smith', age: 88, status: 'Warning', lastActive: '12 hours ago', condition: 'Heart Failure', hr: 95, bp: '135/88', riskScore: 78, aiNotes: 'Missed medication for 3 days.', ambulanceStatus: 'None', risks: { sepsis: 15, cardiac: 72, respiratory: 35 } },
+  { id: 6, name: 'James Wilson', age: 62, status: 'Stable', lastActive: '5 mins ago', condition: 'Asthma', hr: 82, bp: '120/80', riskScore: 15, aiNotes: 'SpO2 drops detected during sleep.', ambulanceStatus: 'None', risks: { sepsis: 2, cardiac: 5, respiratory: 68 } },
+];
 
 export default function DoctorPatients() {
   const { user } = useAuth();
@@ -57,7 +64,11 @@ export default function DoctorPatients() {
             risks: p.risks || { sepsis: 5, cardiac: 10, respiratory: 5 }
           })) : [];
 
-          setPatients([...realPatients]);
+          const uniqueMockPatients = initialPatients.filter(
+            mock => !realPatients.some(real => real.name === mock.name)
+          );
+
+          setPatients([...realPatients, ...uniqueMockPatients]);
           setIsMocking(realPatients.length === 0);
         }
       } catch (err) {

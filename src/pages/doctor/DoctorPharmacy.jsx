@@ -161,13 +161,25 @@ export default function DoctorPharmacy() {
     loadAllData();
   }, []);
 
+  const initialInventory = [
+    { id: 'm1', name: 'Amoxicillin 500mg', sku: 'AMX-500', stock_level: 85, status: 'In Stock', price: 450, category: 'Antibiotic', expiry_date: '12/2026', burn_rate: 1.2, predicted_out_days: 45 },
+    { id: 'm2', name: 'Metformin 850mg', sku: 'MET-850', stock_level: 15, status: 'Low Stock', price: 120, category: 'Diabetes', expiry_date: '08/2025', burn_rate: 3.5, predicted_out_days: 4 },
+    { id: 'm3', name: 'Atorvastatin 20mg', sku: 'ATR-20', stock_level: 60, status: 'In Stock', price: 890, category: 'Cholesterol', expiry_date: '05/2027', burn_rate: 0.8, predicted_out_days: 75 },
+    { id: 'm4', name: 'Warfarin 5mg', sku: 'WRF-5', stock_level: 40, status: 'In Stock', price: 230, category: 'Anticoagulant', expiry_date: '11/2025', burn_rate: 1.5, predicted_out_days: 26 },
+  ];
+
+  const initialPrescriptions = [
+    { id: 'p1', drug_name: 'Aspirin 75mg', quantity: 28, status: 'Pending', created_at: new Date().toISOString(), patients: { full_name: 'Elena Rodriguez' }, profiles: { full_name: 'Dr. Sarah Chen' } },
+    { id: 'p2', drug_name: 'Clopidogrel 75mg', quantity: 14, status: 'Pending', created_at: new Date().toISOString(), patients: { full_name: 'Elena Rodriguez' }, profiles: { full_name: 'Dr. Sarah Chen' } },
+  ];
+
   const loadAllData = async () => {
     try {
       setLoading(true);
       const hospital = await hospitalService.getMyHospital();
       if (!hospital) {
-        setInventory([]);
-        setPrescriptions([]);
+        setInventory(initialInventory);
+        setPrescriptions(initialPrescriptions);
         return;
       }
 
@@ -177,13 +189,22 @@ export default function DoctorPharmacy() {
         pharmacyService.getDispensingLogs(hospital.id)
       ]);
 
-      setInventory(invData || []);
-      setPrescriptions(rxData || []);
+      const realInventory = invData || [];
+      const realPrescriptions = rxData || [];
+
+      if (realInventory.length === 0 && realPrescriptions.length === 0) {
+        setInventory(initialInventory);
+        setPrescriptions(initialPrescriptions);
+      } else {
+        setInventory(realInventory);
+        setPrescriptions(realPrescriptions);
+      }
+      
       setDispensingLog(logData || []);
     } catch (err) {
       console.error("Pharmacy data sync error:", err);
-      setInventory([]);
-      setPrescriptions([]);
+      setInventory(initialInventory);
+      setPrescriptions(initialPrescriptions);
     } finally {
       setLoading(false);
     }

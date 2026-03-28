@@ -21,6 +21,7 @@ const AVATAR = 'https://cdn-icons-png.flaticon.com/512/3774/3774299.png';
 export default function DoctorStaff() {
   const { toasts, addToast, removeToast } = useToast();
   const [staffList, setStaffList] = useState([]);
+  const [isMocking, setIsMocking] = useState(false);
   const [activities, setActivities] = useState([]);
   const [lastError, setLastError] = useState(null);
 
@@ -68,12 +69,22 @@ END $$;`;
     loadAllStaffData();
   }, []);
 
+  const initialStaff = [
+    { id: '1', name: 'Dr. Sarah Chen', role: 'Doctor', department: 'Cardiology', status: 'On Duty', email: 's.chen@sehat.ai', avatar: 'https://i.pravatar.cc/150?u=sarah' },
+    { id: '2', name: 'James Wilson', role: 'Nurse', department: 'ICU', status: 'On Duty', email: 'j.wilson@sehat.ai', avatar: 'https://i.pravatar.cc/150?u=james' },
+    { id: '3', name: 'Dr. Michael Ross', role: 'Doctor', department: 'ER', status: 'Off Duty', email: 'm.ross@sehat.ai', avatar: 'https://i.pravatar.cc/150?u=michael' },
+    { id: '4', name: 'Elena Vance', role: 'Technician', department: 'Lab', status: 'On Duty', email: 'e.vance@sehat.ai', avatar: 'https://i.pravatar.cc/150?u=elena' },
+  ];
 
   const loadAllStaffData = async () => {
     try {
       setLoading(true);
       const hospital = await hospitalService.getMyHospital();
-      if (!hospital) return;
+      if (!hospital) {
+        setStaffList(initialStaff);
+        setIsMocking(true);
+        return;
+      }
 
       const [staff, shiftLogs, logs] = await Promise.all([
         hospitalService.getStaff(hospital.id),
@@ -82,12 +93,25 @@ END $$;`;
       ]);
 
       const realStaff = staff || [];
-      setStaffList(realStaff);
+      const hasRealData = realStaff.length > 0;
+      
+      const mergedStaff = [...realStaff];
+      if (realStaff.length < 3) {
+        initialStaff.forEach(m => {
+          if (!mergedStaff.some(s => s.name === m.name)) {
+            mergedStaff.push(m);
+          }
+        });
+      }
+
+      setStaffList(mergedStaff);
+      setIsMocking(!hasRealData);
       setShifts(shiftLogs || []);
       setActivities(logs?.filter(l => l.action_type === 'STAFF_ACTION').slice(0, 8) || []);
     } catch (err) {
       console.error("Staff sync error:", err);
-      setStaffList([]);
+      setStaffList(initialStaff);
+      setIsMocking(true);
     } finally {
       setLoading(false);
     }

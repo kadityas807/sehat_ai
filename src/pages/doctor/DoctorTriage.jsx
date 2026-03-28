@@ -20,6 +20,12 @@ const STATUS_COLORS = {
   'Discharged':            { bg: 'bg-slate-50', border: 'border-slate-200', badge: 'bg-slate-400 text-white' },
 };
 
+const MOCK_RECORDS = [
+  { id: 'm1', patient_name: 'Rajesh Kumar', patient_age: 45, type: 'Critical Vitals', description: 'Acute Respiratory Distress - SpO2 84%, HR 122.', ai_action: 'Predicted Sepsis Risk 94%. ICU Pre-alert Sent.', status: 'Active', created_at: new Date(Date.now() - 120000).toISOString() },
+  { id: 'm2', patient_name: 'Anita Sharma', patient_age: 72, type: 'Inactivity Threshold', description: 'Unresponsive for 4 hours - Suspected Stroke.', ai_action: 'Neuro-Trauma Team Mobilized via Sentinel Agent.', status: 'Requires Doctor Override', created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: 'm3', patient_name: 'Suresh Gupta', patient_age: 29, type: 'Surgical Escalation', description: 'Severe Abdominal Trauma - Internal Bleeding.', ai_action: 'Blood Bank notified for O-negative cross-match.', status: 'Pending Review', created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 'm4', patient_name: 'Vikram Singh', patient_age: 52, type: 'Cardiac Event', description: 'Troponin T elevated. SpO2 dropped below 90%.', ai_action: 'Logged event. Logged for Urgent Cardiology Consult.', status: 'Pending Review', created_at: new Date(Date.now() - 14400000).toISOString() },
+];
 
 function timeAgo(str) {
   const diff = (Date.now() - new Date(str).getTime()) / 60000;
@@ -33,6 +39,7 @@ export default function DoctorTriage() {
   const { user } = useAuth();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isMock, setIsMock] = useState(false);
   const [hospitalId, setHospitalId] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
   const [processing, setProcessing] = useState({});
@@ -47,11 +54,11 @@ export default function DoctorTriage() {
       
       const data = await triageService.getTriageRecords(h.id);
       
-      if (data && data.length > 0) { setRecords(data); }
-      else { setRecords([]); }
+      if (data && data.length > 0) { setRecords(data); setIsMock(false); }
+      else { setRecords(MOCK_RECORDS); setIsMock(true); }
     } catch (err) {
       console.error(err);
-      setRecords([]);
+      setRecords(MOCK_RECORDS); setIsMock(true);
     } finally {
       setLoading(false);
     }
@@ -72,6 +79,12 @@ export default function DoctorTriage() {
 
   const handleAddCase = async (e) => {
     e.preventDefault();
+    if (isMock) {
+      const fake = { id: `m${Date.now()}`, ...form, patient_age: parseInt(form.patient_age), ai_action: 'Logged by hospital staff', status: 'Active', created_at: new Date().toISOString() };
+      setRecords(prev => [fake, ...prev]);
+      setAddOpen(false); setForm({ patient_name: '', patient_age: '', type: '', description: '' });
+      return;
+    }
     setProcessing(p => ({ ...p, add: true }));
     try {
       await triageService.addTriageRecord({ ...form, patient_age: parseInt(form.patient_age), hospital_id: hospitalId, status: 'Active', ai_action: 'Logged by hospital staff' });
@@ -83,6 +96,10 @@ export default function DoctorTriage() {
   };
 
   const handleResolve = async (rec) => {
+    if (isMock) {
+      setRecords(prev => prev.map(r => r.id === rec.id ? { ...r, status: 'Resolved' } : r));
+      return;
+    }
     setProcessing(p => ({ ...p, [rec.id]: true }));
     try {
       await triageService.updateTriageStatus(rec.id, 'Resolved');
@@ -101,6 +118,7 @@ export default function DoctorTriage() {
         <h2 className="text-3xl font-black tracking-tight text-slate-900 flex items-center uppercase gap-3">
           <AlertTriangle className="h-8 w-8 text-red-600" />
           Smart Triage
+          {isMock && <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-600 font-black">Demo</span>}
         </h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={load} className="gap-1 font-black text-[10px] uppercase tracking-wide">

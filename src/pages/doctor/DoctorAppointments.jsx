@@ -11,12 +11,19 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelled', color: 'slate',   bg: 'bg-slate-50',   border: 'border-slate-200',   text: 'text-slate-500',   dot: 'bg-slate-300' },
 };
 
+const MOCK_APPOINTMENTS = [
+  { id: 'm1', patient_name: 'Priya Sharma', date: '2026-03-27', time: '10:00', reason: 'Routine Checkup', status: 'pending', doctor_name: null, notes: null, created_at: new Date().toISOString() },
+  { id: 'm2', patient_name: 'Rahul Gupta', date: '2026-03-27', time: '11:30', reason: 'Follow-up: Hypertension', status: 'scheduled', doctor_name: 'Dr. Mehta', notes: null, created_at: new Date().toISOString() },
+  { id: 'm3', patient_name: 'Ananya Patel', date: '2026-03-26', time: '09:00', reason: 'Cardiology Consult', status: 'completed', doctor_name: 'Dr. Kapoor', notes: null, created_at: new Date().toISOString() },
+  { id: 'm4', patient_name: 'Vijay Nair', date: '2026-03-25', time: '14:00', reason: 'Post-op Follow-up', status: 'cancelled', doctor_name: null, notes: 'Patient rescheduled', created_at: new Date().toISOString() },
+];
 
 export default function DoctorAppointments() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, scheduled: 0, completed: 0, cancelled: 0 });
   const [loading, setLoading] = useState(true);
+  const [isMock, setIsMock] = useState(false);
   const [hospitalId, setHospitalId] = useState(null);
   const [processing, setProcessing] = useState({});
   const [filter, setFilter] = useState('all');
@@ -40,14 +47,17 @@ export default function DoctorAppointments() {
       if (apts.length > 0) {
         setAppointments(apts);
         setStats(aptStats);
+        setIsMock(false);
       } else {
-        setAppointments([]);
-        setStats({ total: 0, pending: 0, scheduled: 0, completed: 0, cancelled: 0 });
+        setAppointments(MOCK_APPOINTMENTS);
+        setStats({ total: 4, pending: 1, scheduled: 1, completed: 1, cancelled: 1 });
+        setIsMock(true);
       }
     } catch (err) {
       console.error('Appointments load error:', err);
       setError(err.message);
-      setAppointments([]);
+      setAppointments(MOCK_APPOINTMENTS);
+      setIsMock(true);
     } finally {
       setLoading(false);
     }
@@ -67,6 +77,10 @@ export default function DoctorAppointments() {
   }, [loadData, user]);
 
   const handleApprove = async (apt) => {
+    if (isMock) {
+      setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: 'scheduled' } : a));
+      return;
+    }
     setProcessing(p => ({ ...p, [apt.id]: 'approving' }));
     try {
       await appointmentService.approveAppointment(apt.id);
@@ -76,6 +90,10 @@ export default function DoctorAppointments() {
   };
 
   const handleReject = async (apt) => {
+    if (isMock) {
+      setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: 'cancelled' } : a));
+      return;
+    }
     setProcessing(p => ({ ...p, [apt.id]: 'rejecting' }));
     try {
       await appointmentService.rejectAppointment(apt.id);
@@ -85,6 +103,10 @@ export default function DoctorAppointments() {
   };
 
   const handleComplete = async (apt) => {
+    if (isMock) {
+      setAppointments(prev => prev.map(a => a.id === apt.id ? { ...a, status: 'completed' } : a));
+      return;
+    }
     setProcessing(p => ({ ...p, [apt.id]: 'completing' }));
     try {
       await appointmentService.completeAppointment(apt.id);
@@ -121,6 +143,7 @@ export default function DoctorAppointments() {
         <div>
           <h2 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
             Appointments
+            {isMock && <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-600 uppercase font-black">Demo Mode</span>}
           </h2>
           <p className="text-slate-500 text-sm mt-1">Manage patient appointment requests and scheduling.</p>
         </div>
@@ -171,7 +194,7 @@ export default function DoctorAppointments() {
       {error && (
         <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700">
           <AlertCircle size={16} />
-          <span>Database error: {error}.</span>
+          <span>Database error: {error}. Showing demo data.</span>
         </div>
       )}
 
