@@ -42,7 +42,7 @@ export default function PatientDashboard({ onLogout }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
   const [primaryHospital, setPrimaryHospital] = useState(null);
-  const userName = localStorage.getItem('sehat_user_name') || user?.full_name || "Alex Johnson";
+  const userName = localStorage.getItem('sehat_user_name') || user?.full_name || "User";
 
   // Extract current path segment
   const currentPathSegment = location.pathname.split('/').pop() || 'dashboard';
@@ -298,6 +298,7 @@ export default function PatientDashboard({ onLogout }) {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={
               <DashboardView 
+                user={user}
                 userName={userName} 
                 medicalProfile={medicalProfileData}
                 onNavigate={(id) => navigate(`/patient/${id}`)} 
@@ -350,8 +351,10 @@ function NavItem({ id, icon, label, active, onClick }) {
 }
 
 
-function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
+function DashboardView({ user, userName, medicalProfile, onNavigate, isBraceletRegistered, setIsBraceletRegistered, setBraceletId }) {
   const [showPhysical, setShowPhysical] = useState(true);
+  const isDemo = user?.demo_mode;
+  const localAppointments = JSON.parse(localStorage.getItem('sehat_appointments') || '[]');
 
 
   const downloadLabResult = (testName, facility, date, status, notes) => {
@@ -487,44 +490,85 @@ function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegiste
             <button onClick={() => onNavigate('appointments')} className="text-xs font-semibold text-primary hover:underline">View All</button>
           </div>
           <div className="space-y-4">
-            {showPhysical && (
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 transform origin-top">
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="size-10 bg-primary/10 rounded-lg flex flex-col items-center justify-center text-primary">
-                    <span className="text-[10px] font-bold uppercase leading-none">Oct</span>
-                    <span className="text-lg font-black leading-none">24</span>
+            {isDemo ? (
+              <>
+                {showPhysical && (
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 transform origin-top">
+                    <div className="flex items-center gap-4 mb-3">
+                      <div className="size-10 bg-primary/10 rounded-lg flex flex-col items-center justify-center text-primary">
+                        <span className="text-[10px] font-bold uppercase leading-none">Oct</span>
+                        <span className="text-lg font-black leading-none">24</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">Annual Physical</p>
+                        <p className="text-xs text-slate-500">Dr. Sarah Mitchell • 10:30 AM</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => onNavigate('appointments')} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 transition-colors">Reschedule</button>
+                      <button 
+                        onClick={() => window.open('https://www.google.com/maps/dir/?api=1&destination=Saint+Mary%27s+Specialist+Hospital', '_blank')} 
+                        className="flex-1 py-1.5 text-xs font-bold text-primary bg-primary/10 rounded hover:bg-primary/20 transition-colors"
+                      >
+                        Directions
+                      </button>
+                      <button onClick={() => setShowPhysical(false)} className="px-2 py-1.5 text-slate-400 hover:text-red-500 transition-colors">
+                        <span className="material-symbols-outlined text-sm">cancel</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">Annual Physical</p>
-                    <p className="text-xs text-slate-500">Dr. Sarah Mitchell • 10:30 AM</p>
+                )}
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm opacity-75">
+                  <div className="flex items-center gap-4">
+                    <div className="size-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex flex-col items-center justify-center text-slate-500">
+                      <span className="text-[10px] font-bold uppercase leading-none">Nov</span>
+                      <span className="text-lg font-black leading-none">12</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">Lab Results Review</p>
+                      <p className="text-xs text-slate-500">Video Consultation • 02:00 PM</p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => onNavigate('appointments')} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 transition-colors">Reschedule</button>
-                  <button 
-                    onClick={() => window.open('https://www.google.com/maps/dir/?api=1&destination=Saint+Mary%27s+Specialist+Hospital', '_blank')} 
-                    className="flex-1 py-1.5 text-xs font-bold text-primary bg-primary/10 rounded hover:bg-primary/20 transition-colors"
-                  >
-                    Directions
-                  </button>
-                  <button onClick={() => setShowPhysical(false)} className="px-2 py-1.5 text-slate-400 hover:text-red-500 transition-colors">
-                    <span className="material-symbols-outlined text-sm">cancel</span>
-                  </button>
+              </>
+            ) : (
+              localAppointments.length > 0 ? (
+                localAppointments.map((apt, idx) => {
+                  const d = new Date(apt.date || new Date());
+                  const month = d.toLocaleString('en-US', { month: 'short' });
+                  const day = d.getDate();
+                  return (
+                    <div key={idx} className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300">
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="size-10 bg-primary/10 rounded-lg flex flex-col items-center justify-center text-primary">
+                          <span className="text-[10px] font-bold uppercase leading-none">{month}</span>
+                          <span className="text-lg font-black leading-none">{day}</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{'Consultation'}</p>
+                          <p className="text-xs text-slate-500">{apt.facility?.name} • {apt.slot}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => onNavigate('appointments')} className="flex-1 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 transition-colors">Reschedule</button>
+                        <button 
+                          onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(apt.facility?.name)}`, '_blank')} 
+                          className="flex-1 py-1.5 text-xs font-bold text-primary bg-primary/10 rounded hover:bg-primary/20 transition-colors"
+                        >
+                          Directions
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
+                  <span className="material-symbols-outlined text-slate-400 mb-2">event_busy</span>
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Upcoming Appointments</p>
+                  <p className="text-xs text-slate-500 mt-1">Ready to book your next checkup?</p>
                 </div>
-              </div>
+              )
             )}
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm opacity-75">
-              <div className="flex items-center gap-4">
-                <div className="size-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex flex-col items-center justify-center text-slate-500">
-                  <span className="text-[10px] font-bold uppercase leading-none">Nov</span>
-                  <span className="text-lg font-black leading-none">12</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Lab Results Review</p>
-                  <p className="text-xs text-slate-500">Video Consultation • 02:00 PM</p>
-                </div>
-              </div>
-            </div>
           </div>
           </section>
 
@@ -549,57 +593,68 @@ function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegiste
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
-                      <td className="px-6 py-4">
-                        <p className="font-bold text-sm text-slate-900 dark:text-white">Complete Blood Count</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Quest Diagnostics</p>
-                      </td>
-                      <td className="px-6 py-4 text-[13px] text-slate-600 dark:text-slate-400">Oct 12, 2023</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border border-green-100 dark:border-green-800">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Normal
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button onClick={() => downloadLabResult('Complete Blood Count', 'Quest Diagnostics', 'Oct 12, 2023', 'Normal', {metric:'RBC Count', value:'4.5 M/µL', range:'4.1-5.1 M/µL'})} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors">
-                          <span className="material-symbols-outlined text-lg">download</span>
-                        </button>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
-                      <td className="px-6 py-4">
-                        <p className="font-bold text-sm text-slate-900 dark:text-white">Lipid Profile</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">General Medical Labs</p>
-                      </td>
-                      <td className="px-6 py-4 text-[13px] text-slate-600 dark:text-slate-400">Sep 28, 2023</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border border-green-100 dark:border-green-800">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Normal
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button onClick={() => downloadLabResult('Lipid Profile', 'General Medical Labs', 'Sep 28, 2023', 'Normal', {metric:'LDL Cholesterol', value:'95 mg/dL', range:'<100 mg/dL'})} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors">
-                          <span className="material-symbols-outlined text-lg">download</span>
-                        </button>
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
-                      <td className="px-6 py-4">
-                        <p className="font-bold text-sm text-slate-900 dark:text-white">Glucose (HbA1c)</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Sehat Healthcare</p>
-                      </td>
-                      <td className="px-6 py-4 text-[13px] text-slate-600 dark:text-slate-400">Sep 15, 2023</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-100 dark:border-orange-800">
-                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Borderline
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button onClick={() => downloadLabResult('Glucose (HbA1c)', 'Sehat Healthcare', 'Sep 15, 2023', 'Borderline', {metric:'A1c Level', value:'5.9%', range:'<5.7%'})} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors">
-                          <span className="material-symbols-outlined text-lg">download</span>
-                        </button>
-                      </td>
-                    </tr>
+                    {isDemo ? (
+                      <>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-sm text-slate-900 dark:text-white">Complete Blood Count</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Quest Diagnostics</p>
+                          </td>
+                          <td className="px-6 py-4 text-[13px] text-slate-600 dark:text-slate-400">Oct 12, 2023</td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border border-green-100 dark:border-green-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Normal
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => downloadLabResult('Complete Blood Count', 'Quest Diagnostics', 'Oct 12, 2023', 'Normal', {metric:'RBC Count', value:'4.5 M/µL', range:'4.1-5.1 M/µL'})} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors">
+                              <span className="material-symbols-outlined text-lg">download</span>
+                            </button>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-sm text-slate-900 dark:text-white">Lipid Profile</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">General Medical Labs</p>
+                          </td>
+                          <td className="px-6 py-4 text-[13px] text-slate-600 dark:text-slate-400">Sep 28, 2023</td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border border-green-100 dark:border-green-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Normal
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => downloadLabResult('Lipid Profile', 'General Medical Labs', 'Sep 28, 2023', 'Normal', {metric:'LDL Cholesterol', value:'95 mg/dL', range:'<100 mg/dL'})} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors">
+                              <span className="material-symbols-outlined text-lg">download</span>
+                            </button>
+                          </td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-sm text-slate-900 dark:text-white">Glucose (HbA1c)</p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Sehat Healthcare</p>
+                          </td>
+                          <td className="px-6 py-4 text-[13px] text-slate-600 dark:text-slate-400">Sep 15, 2023</td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-100 dark:border-orange-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Borderline
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => downloadLabResult('Glucose (HbA1c)', 'Sehat Healthcare', 'Sep 15, 2023', 'Borderline', {metric:'A1c Level', value:'5.9%', range:'<5.7%'})} className="text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors">
+                              <span className="material-symbols-outlined text-lg">download</span>
+                            </button>
+                          </td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td colSpan="4" className="px-6 py-12 text-center text-slate-500 text-sm">
+                          <span className="material-symbols-outlined block mb-2 text-slate-400">science</span>
+                          No recent lab results to display
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -618,56 +673,74 @@ function DashboardView({ userName, medicalProfile, onNavigate, isBraceletRegiste
             </h3>
           </div>
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              <div className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="size-10 shrink-0 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                  <span className="material-symbols-outlined">pill</span>
+            {isDemo ? (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div className="size-10 shrink-0 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined">pill</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Lisinopril (10mg)</p>
+                    <p className="text-xs text-slate-500">Take with water • 08:00 AM</p>
+                  </div>
+                  <span className="material-symbols-outlined text-green-500 text-xl">check_circle</span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Lisinopril (10mg)</p>
-                  <p className="text-xs text-slate-500">Take with water • 08:00 AM</p>
+                <div className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div className="size-10 shrink-0 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined">pill</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Atorvastatin (20mg)</p>
+                    <p className="text-xs text-slate-500">After dinner • 08:00 PM</p>
+                  </div>
+                  <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded-full text-slate-500 uppercase">Upcoming</div>
                 </div>
-                <span className="material-symbols-outlined text-green-500 text-xl">check_circle</span>
+                <div className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div className="size-10 shrink-0 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center text-red-500">
+                    <span className="material-symbols-outlined">warning</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Multivitamin</p>
+                    <p className="text-xs text-slate-500">Anytime • Missed Yesterday</p>
+                  </div>
+                  <button onClick={() => onNavigate('medications')} className="text-xs font-bold text-primary hover:underline">Log Now</button>
+                </div>
               </div>
-              <div className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="size-10 shrink-0 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                  <span className="material-symbols-outlined">pill</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Atorvastatin (20mg)</p>
-                  <p className="text-xs text-slate-500">After dinner • 08:00 PM</p>
-                </div>
-                <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-[10px] font-bold rounded-full text-slate-500 uppercase">Upcoming</div>
+            ) : (
+              <div className="p-6 text-center text-slate-500 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                <span className="material-symbols-outlined block mb-2 text-slate-400">medication</span>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Medication Scheduled</p>
+                <button onClick={() => onNavigate('medications')} className="mt-3 text-xs font-bold text-primary hover:underline bg-primary/10 px-3 py-1.5 rounded-lg">Add Medication</button>
               </div>
-              <div className="p-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="size-10 shrink-0 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center text-red-500">
-                  <span className="material-symbols-outlined">warning</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Multivitamin</p>
-                  <p className="text-xs text-slate-500">Anytime • Missed Yesterday</p>
-                </div>
-                <button onClick={() => onNavigate('medications')} className="text-xs font-bold text-primary hover:underline">Log Now</button>
-              </div>
-            </div>
+            )}
           </div>
           </section>
 
           {/* Emergency Contact */}
           <section>
-            <div className="bg-red-50/50 dark:bg-red-900/10 rounded-xl p-5 border border-red-100 dark:border-red-900/30">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-red-500 dark:text-red-400 mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-sm">emergency</span>
-                Emergency Contact
-              </h4>
-              <div className="flex items-center gap-3">
-                <div className="bg-red-500 text-white size-10 rounded-full flex items-center justify-center font-bold text-sm">EM</div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">Elena Miller</p>
-                  <p className="text-xs text-slate-500 mt-1">Spouse • (555) 012-3456</p>
+            {isDemo ? (
+              <div className="bg-red-50/50 dark:bg-red-900/10 rounded-xl p-5 border border-red-100 dark:border-red-900/30">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-red-500 dark:text-red-400 mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">emergency</span>
+                  Emergency Contact
+                </h4>
+                <div className="flex items-center gap-3">
+                  <div className="bg-red-500 text-white size-10 rounded-full flex items-center justify-center font-bold text-sm">EM</div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-none">Elena Miller</p>
+                    <p className="text-xs text-slate-500 mt-1">Spouse • (555) 012-3456</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">Emergency Info</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">Setup emergency contacts</p>
+                </div>
+                <button onClick={() => onNavigate('settings')} className="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">Setup</button>
+              </div>
+            )}
           </section>
         </div>
       </div>

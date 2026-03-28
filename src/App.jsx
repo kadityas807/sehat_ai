@@ -33,7 +33,7 @@ function ProtectedRoute({ role: requiredRole, children }) {
 }
 
 export default function App() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, loginAsDemo } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -61,6 +61,10 @@ export default function App() {
   const handlePortalSelect = async (selectedRole, initialMode = 'signin') => {
     if (user) {
       await logout();
+    }
+    if (initialMode === 'demo') {
+      loginAsDemo(selectedRole);
+      return;
     }
     if (selectedRole === 'admin') { navigate('/admin/login'); return; }
     navigate(`/portal/${selectedRole}${initialMode === 'signup' ? '?mode=signup' : ''}`);

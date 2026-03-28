@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function Login({ onLogin }) {
+  const [showDemoOptions, setShowDemoOptions] = useState(false);
+
   return (
     <div className="bg-background-light font-display text-slate-900 min-h-screen medical-pulse-bg">
       <div className="relative flex flex-col min-h-screen">
@@ -91,14 +93,54 @@ export default function Login({ onLogin }) {
             </div>
           </div>
 
-          <div className="mt-16 flex flex-col items-center gap-4">
-            <button 
-              onClick={() => onLogin('patient', 'signup')}
-              className="bg-primary/5 hover:bg-primary/10 text-primary px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined text-lg">person_add</span>
-              Create a new SehatAI Account
-            </button>
+          <div className="mt-16 flex flex-col items-center gap-6">
+            <div className="flex flex-col items-center gap-4">
+              <button 
+                onClick={() => onLogin('patient', 'signup')}
+                className="bg-primary/5 hover:bg-primary/10 text-primary px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2 group"
+              >
+                <span className="material-symbols-outlined text-lg group-hover:rotate-12 transition-transform">person_add</span>
+                Create a new SehatAI Account
+              </button>
+              
+              {!showDemoOptions ? (
+                <button 
+                  onClick={() => setShowDemoOptions(true)}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/50 px-8 py-3 rounded-full font-bold transition-all flex items-center gap-2 mt-2 group"
+                >
+                  <span className="material-symbols-outlined text-lg text-amber-500 animate-pulse">science</span>
+                  Hackathon Presentation: Launch Demo Mode
+                </button>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300 shadow-xl max-w-2xl border-t-4 border-t-amber-400">
+                  <div className="flex items-center gap-2 text-amber-800 mb-1">
+                    <span className="material-symbols-outlined scale-110">info</span>
+                    <p className="font-bold text-xs uppercase tracking-widest">Select Demo Instance (One-Click Bypass)</p>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <button 
+                      onClick={() => onLogin('patient', 'demo')}
+                      className="bg-vital-green text-white px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm hover:shadow-vital-green/20 hover:translate-y-[-2px] active:translate-y-0"
+                    >
+                      <span className="material-symbols-outlined text-lg">person</span> Patient Dashboard
+                    </button>
+                    <button 
+                      onClick={() => onLogin('doctor', 'demo')}
+                      className="bg-professional-teal text-white px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm hover:shadow-professional-teal/20 hover:translate-y-[-2px] active:translate-y-0"
+                    >
+                      <span className="material-symbols-outlined text-lg">domain</span> Hospital Dashboard
+                    </button>
+                    <button 
+                      onClick={() => onLogin('admin', 'demo')}
+                      className="bg-security-slate text-white px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm hover:shadow-security-slate/20 hover:translate-y-[-2px] active:translate-y-0"
+                    >
+                      <span className="material-symbols-outlined text-lg">admin_panel_settings</span> Admin Control
+                    </button>
+                  </div>
+                  <button onClick={() => setShowDemoOptions(false)} className="text-slate-400 text-xs hover:text-slate-600 font-semibold underline underline-offset-4 transition-colors">Return to secure login gateway</button>
+                </div>
+              )}
+            </div>
             <button className="text-slate-500 hover:text-primary text-sm font-medium transition-colors">
               Need help accessing your account?
             </button>

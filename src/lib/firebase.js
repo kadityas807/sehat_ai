@@ -27,17 +27,17 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
 
-// Initialize App Check (reCAPTCHA v3)
-if (import.meta.env.VITE_RECAPTCHA_SITE_KEY && typeof window !== 'undefined') {
-  // Pass true for debug token during development
-  if (import.meta.env.DEV) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  }
-  
+// Initialize App Check (reCAPTCHA v3) — only with a REAL key, never in dev mode
+const recaptchaKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+const isRealKey = recaptchaKey && recaptchaKey.length > 20 && recaptchaKey !== '123456789';
+
+if (isRealKey && typeof window !== 'undefined' && !import.meta.env.DEV) {
   initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+    provider: new ReCaptchaV3Provider(recaptchaKey),
     isTokenAutoRefreshEnabled: true
   });
+} else if (import.meta.env.DEV) {
+  console.log('[Firebase] App Check skipped in development mode');
 }
 
 export default app;

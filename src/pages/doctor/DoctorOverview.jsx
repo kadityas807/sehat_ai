@@ -5,19 +5,14 @@ import { Badge } from "@/components/ui/badge";
 
 export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) {
   const [stats, setStats] = useState({
-    totalPatients: 1284,
-    activeBeds: 412,
-    totalBeds: 488,
-    staffOnDuty: 156,
-    waitTime: 24,
-    isMock: true
+    totalPatients: 0,
+    activeBeds: 0,
+    totalBeds: 0,
+    staffOnDuty: 0,
+    waitTime: 0,
+    hasData: false
   });
-  const [wards, setWards] = useState([
-    { label: "ICU Main Unit", floor: "Floor 4", cap: 92, val: "24/26 Beds", status: "Critical", color: "red" },
-    { label: "Surgery Ward A", floor: "Floor 2", cap: 65, val: "39/60 Beds", status: "Stable", color: "primary" },
-    { label: "Pediatrics", floor: "Floor 3", cap: 42, val: "21/50 Beds", status: "Under-capacity", color: "primary" },
-    { label: "Cardiology Wing", floor: "Floor 1", cap: 78, val: "31/40 Beds", status: "Warning", color: "orange" }
-  ]);
+  const [wards, setWards] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,33 +27,29 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
           hospitalService.getStaff(hospital.id)
         ]);
 
-        const hasRealData = s.totalPatients > 0 || realWards.length > 0 || (staff && staff.length > 0);
+        setStats({
+          totalPatients: s.totalPatients || 0,
+          activeBeds: realWards.reduce((acc, w) => acc + (w.beds?.filter(b => b.status === 'occupied').length || 0), 0),
+          totalBeds: realWards.reduce((acc, w) => acc + (w.beds?.length || 0), 0) || 0,
+          staffOnDuty: staff?.length || 0,
+          waitTime: 12,
+          hasData: true
+        });
 
-        if (hasRealData) {
-          setStats({
-            totalPatients: s.totalPatients || 0,
-            activeBeds: realWards.reduce((acc, w) => acc + (w.beds?.filter(b => b.status === 'occupied').length || 0), 0),
-            totalBeds: realWards.reduce((acc, w) => acc + (w.beds?.length || 0), 0) || 0,
-            staffOnDuty: staff?.length || 0,
-            waitTime: 12,
-            isMock: false
-          });
-
-          if (realWards.length > 0) {
-            setWards(realWards.map(w => {
-              const total = w.beds?.length || 0;
-              const occupied = w.beds?.filter(b => b.status === 'occupied').length || 0;
-              const cap = total > 0 ? Math.round((occupied / total) * 100) : 0;
-              return {
-                label: w.name,
-                floor: `Floor ${w.floor || 1}`,
-                cap: cap,
-                val: `${occupied}/${total} Beds`,
-                status: cap > 80 ? "Critical" : "Stable",
-                color: cap > 80 ? "red" : "primary"
-              };
-            }));
-          }
+        if (realWards.length > 0) {
+          setWards(realWards.map(w => {
+            const total = w.beds?.length || 0;
+            const occupied = w.beds?.filter(b => b.status === 'occupied').length || 0;
+            const cap = total > 0 ? Math.round((occupied / total) * 100) : 0;
+            return {
+              label: w.name,
+              floor: `Floor ${w.floor || 1}`,
+              cap: cap,
+              val: `${occupied}/${total} Beds`,
+              status: cap > 80 ? "Critical" : "Stable",
+              color: cap > 80 ? "red" : "primary"
+            };
+          }));
         }
       } catch (err) {
         console.error("Dashboard data sync error:", err);
@@ -76,8 +67,8 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
           Hospital Command Center
-          {stats.isMock && (
-            <Badge variant="outline" className="text-[10px] uppercase border-amber-200 text-amber-600 bg-amber-50">Demo Mode</Badge>
+          {stats.hasData && (
+            <Badge variant="outline" className="text-[10px] uppercase border-green-200 text-green-600 bg-green-50">Live</Badge>
           )}
         </h2>
       </div>
@@ -87,11 +78,10 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
         <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-800 group hover:translate-y-[-2px] transition-all">
           <div className="flex items-center justify-between mb-4">
             <span className="p-2 bg-primary/10 text-primary rounded-xl material-symbols-outlined">person</span>
-            {!stats.isMock && <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase tracking-wider">REAL-TIME</span>}
-            {stats.isMock && <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase tracking-wider">+12%</span>}
+            {stats.hasData && <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase tracking-wider">REAL-TIME</span>}
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">{hospitalInfo?.shortName ? `${hospitalInfo.shortName} Patients` : "Total Patients"}</p>
-          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{stats.totalPatients?.toLocaleString?.() || stats.totalPatients || "1,284"}</h3>
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{stats.totalPatients?.toLocaleString?.() || 0}</h3>
         </div>
 
         <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-800 group hover:translate-y-[-2px] transition-all">
@@ -142,7 +132,14 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {wards.map((ward) => (
+            {wards.length === 0 ? (
+              <div className="col-span-2 flex flex-col items-center justify-center py-12 text-center bg-white dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+                <span className="material-symbols-outlined text-4xl text-slate-200 dark:text-slate-700 mb-3">domain_add</span>
+                <p className="text-sm font-bold text-slate-400 dark:text-slate-500">No wards configured</p>
+                <p className="text-[11px] text-slate-300 dark:text-slate-600 mt-1">Add wards from the Ward Management section</p>
+              </div>
+            ) : (
+              wards.map((ward) => (
               <div key={ward.label} className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-6">
                   <div>
@@ -162,7 +159,8 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
                   <span>{ward.status}</span>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
 
           {/* Clinical Performance Analytics (Visual Representation) */}
@@ -220,39 +218,12 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
             </div>
             
             <div className="p-4 space-y-4">
-              <div className="flex items-start gap-4 p-4 bg-red-50/50 dark:bg-red-900/10 border-l-4 border-l-red-500 rounded-xl relative overflow-hidden group">
-                <div className="flex-1 relative z-10">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-sm font-black text-slate-900 dark:text-white leading-none">Elena Rodriguez</h4>
-                    <span className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">Critical</span>
-                  </div>
-                  <p className="text-[11px] font-bold text-slate-500 mb-2 mt-1">ETA: 4 min • Cardiac Trauma</p>
-                  <div className="flex gap-2">
-                    <span className="px-3 py-1 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/30 text-[9px] font-black text-red-600 dark:text-red-400 rounded-full uppercase tracking-widest shadow-sm">ER Bay 02</span>
-                  </div>
-                </div>
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <span className="material-symbols-outlined text-4xl text-slate-200 dark:text-slate-700 mb-3">local_hospital</span>
+                <p className="text-sm font-bold text-slate-400 dark:text-slate-500">No incoming emergencies</p>
+                <p className="text-[11px] text-slate-300 dark:text-slate-600 mt-1">Emergency intake data will appear here in real-time</p>
               </div>
-
-              {[
-                { name: "Mark Thompson", eta: "12 min", cause: "Severe Laceration", id: "AMBULANCE 402", color: "slate" },
-                { name: "Julian Black", eta: "18 min", cause: "Respiratory", id: "AIR LIFT 09", color: "slate" }
-              ].map(p => (
-                <div key={p.name} className="flex items-start gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-all border border-transparent hover:border-slate-100 dark:hover:border-slate-800 group">
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white leading-none group-hover:text-primary transition-colors">{p.name}</h4>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Urgent</span>
-                    </div>
-                    <p className="text-[11px] font-bold text-slate-500 mb-2">ETA: {p.eta} • {p.cause}</p>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{p.id}</span>
-                  </div>
-                </div>
-              ))}
             </div>
-            
-            <button className="w-full py-4 text-[10px] font-black text-slate-400 hover:text-primary transition-colors border-t border-slate-50 dark:border-slate-800 uppercase tracking-[0.2em]">
-              View All Incoming (8)
-            </button>
           </div>
 
           {/* Staffing & Operations Summary */}

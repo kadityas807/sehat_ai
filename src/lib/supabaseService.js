@@ -111,18 +111,30 @@ export async function markNotificationRead(notifId) {
 }
 
 // ─── Hospital Stats ───────────────────────────────────────────────────────────
-export async function getHospitalStats() {
+export async function getHospitalStats(hospitalId) {
   const MASTER_HOSPITAL_ID = '11111111-1111-1111-1111-111111111111';
+  const isDemoMode = localStorage.getItem('sehat_demo_mode');
+  const targetHospitalId = hospitalId || (isDemoMode ? MASTER_HOSPITAL_ID : null);
   
+  const queries = [
+    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'patient'),
+    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'doctor'),
+  ];
+
+  // Only query triage records if we have a hospital to scope to
+  if (targetHospitalId) {
+    queries.push(
+      supabase.from('triage_records').select('*', { count: 'exact', head: true }).eq('hospital_id', targetHospitalId).eq('status', 'Pending Review')
+    );
+  } else {
+    queries.push(Promise.resolve({ count: 0 }));
+  }
+
   const [
     { count: totalPatients },
     { count: totalDoctors },
     { count: pendingTriage }
-  ] = await Promise.all([
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'patient'),
-    supabase.from('users').select('*', { count: 'exact', head: true }).eq('role', 'doctor'),
-    supabase.from('triage_records').select('*', { count: 'exact', head: true }).eq('hospital_id', MASTER_HOSPITAL_ID).eq('status', 'Pending Review'),
-  ]);
+  ] = await Promise.all(queries);
 
   return {
     totalPatients: totalPatients || 0,

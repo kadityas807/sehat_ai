@@ -12,6 +12,8 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut 
 } from 'firebase/auth';
@@ -72,13 +74,80 @@ export function AuthProvider({ children }) {
           setToken(null);
         }
       } else {
-        setUser(null);
-        setToken(null);
+        // Check for Demo Mode if not logged into Firebase
+        const demoRole = localStorage.getItem('sehat_demo_mode');
+        if (demoRole) {
+          setUser({
+            id: `demo-${demoRole}`,
+            email: `demo@${demoRole}.ai`,
+            role: demoRole,
+            full_name: `Demo ${demoRole.charAt(0).toUpperCase() + demoRole.slice(1)}`,
+            demo_mode: true
+          });
+          setToken(`demo-${demoRole}`);
+        } else {
+          setUser(null);
+          setToken(null);
+        }
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Handle redirect-based Google login result (when popup was blocked)
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          const pendingRole = localStorage.getItem('sehat_google_pending_role') || 'patient';
+          const extraDataStr = localStorage.getItem('sehat_google_extra_data');
+          const extraData = extraDataStr ? JSON.parse(extraDataStr) : {};
+          
+          // Clean up
+          localStorage.removeItem('sehat_google_pending_role');
+          localStorage.removeItem('sehat_google_extra_data');
+
+          const firebaseUser = result.user;
+
+          // Sync with Supabase
+          try {
+            const { error: supaSignUpError } = await supabase.auth.signUp({
+              email: firebaseUser.email,
+              password: firebaseUser.uid,
+              options: { data: { full_name: firebaseUser.displayName || 'Google User', role: pendingRole, firebase_uid: firebaseUser.uid } }
+            });
+            if (supaSignUpError) {
+              await supabase.auth.signInWithPassword({ email: firebaseUser.email, password: firebaseUser.uid });
+            }
+          } catch (e) { console.warn("Supabase redirect sync:", e.message); }
+
+          // Create Firestore profile if new
+          const docRef = doc(db, 'users', firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (!docSnap.exists()) {
+            const newUserData = {
+              email: firebaseUser.email,
+              role: pendingRole,
+              full_name: extraData.full_name || firebaseUser.displayName || 'Google User',
+              phone: firebaseUser.phoneNumber || '',
+              avatar_url: firebaseUser.photoURL || null,
+              created_at: new Date().toISOString(),
+              ...extraData
+            };
+            await setDoc(docRef, newUserData);
+            if (pendingRole === 'patient') {
+              await setDoc(doc(db, 'patients', firebaseUser.uid), { user_id: firebaseUser.uid });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Redirect result handling:", err.message);
+      }
+    };
+    handleRedirectResult();
   }, []);
 
   /**
@@ -120,10 +189,10 @@ export function AuthProvider({ children }) {
   /**
    * loginWithGoogle — authenticates with Google.
    * If the user is new, we create their Firestore profile with the expected role.
+   * Also syncs the session with Supabase so DB queries work.
    */
   const loginWithGoogle = async (expectedRole, extraData = {}) => {
     const provider = new GoogleAuthProvider();
-    // Force account selection to prevent sign-in loops or "silent" failures
     provider.setCustomParameters({ 
       prompt: 'select_account'
     });
@@ -136,16 +205,56 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error("Google Popup Error:", err);
       if (err.code === 'auth/popup-blocked') {
-        throw new Error('Pop-up was blocked. Please allow pop-ups for this site.');
+        // Fallback to redirect-based login
+        console.log("Popup blocked — falling back to redirect login");
+        localStorage.setItem('sehat_google_pending_role', expectedRole);
+        if (Object.keys(extraData).length > 0) {
+          localStorage.setItem('sehat_google_extra_data', JSON.stringify(extraData));
+        }
+        await signInWithRedirect(auth, provider);
+        return; // Page will redirect, so execution stops here
       } else if (err.code === 'auth/unauthorized-domain') {
-        throw new Error(`This domain (${window.location.hostname}) is not authorized in Firebase Console.`);
+        throw new Error(`This domain (${window.location.hostname}) is not authorized in Firebase Console. Add it under Authentication > Settings > Authorized Domains.`);
+      } else if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
+        throw new Error('Login cancelled. Please try again.');
       }
       throw err;
     }
 
     const firebaseUser = userCredential.user;
     
-    // Check if Firestore profile exists
+    // ── Sync with Supabase Auth ──────────────────────────────────────────────
+    // This is critical: without a Supabase session, all DB queries will fail.
+    try {
+      // Try to sign up first (for new users), then sign in (for existing users)
+      const { error: supaSignUpError } = await supabase.auth.signUp({
+        email: firebaseUser.email,
+        password: firebaseUser.uid, // Use Firebase UID as deterministic password
+        options: {
+          data: {
+            full_name: extraData.full_name || firebaseUser.displayName || 'Google User',
+            role: expectedRole || 'patient',
+            firebase_uid: firebaseUser.uid
+          }
+        }
+      });
+
+      if (supaSignUpError) {
+        // User already exists in Supabase — sign in instead
+        const { error: supaSignInError } = await supabase.auth.signInWithPassword({
+          email: firebaseUser.email,
+          password: firebaseUser.uid
+        });
+        if (supaSignInError) {
+          console.warn("Supabase session sync failed (non-critical):", supaSignInError.message);
+          // Non-critical: Firebase auth still works, some DB features may be limited
+        }
+      }
+    } catch (supaErr) {
+      console.warn("Supabase sync error (non-critical):", supaErr.message);
+    }
+
+    // ── Firestore profile ────────────────────────────────────────────────────
     const docRef = doc(db, 'users', firebaseUser.uid);
     const docSnap = await getDoc(docRef);
     
@@ -170,6 +279,27 @@ export function AuthProvider({ children }) {
         await setDoc(doc(db, 'doctors', firebaseUser.uid), { user_id: firebaseUser.uid, is_available: true });
       }
 
+      // Also sync profile to Supabase profiles table
+      try {
+        const { data: supaUser } = await supabase.auth.getUser();
+        if (supaUser?.user?.id) {
+          await supabase.from('profiles').upsert({
+            id: supaUser.user.id,
+            email: firebaseUser.email,
+            role: role,
+            full_name: newUserData.full_name,
+            firebase_uid: firebaseUser.uid,
+            status: 'active'
+          });
+
+          if (role === 'patient') {
+            await supabase.from('patients').upsert({ user_id: supaUser.user.id });
+          }
+        }
+      } catch (profileErr) {
+        console.warn("Supabase profile sync (non-critical):", profileErr.message);
+      }
+
       // Explicitly set user state to avoid race condition with listener
       setUser({ id: firebaseUser.uid, ...newUserData });
     } else {
@@ -177,7 +307,8 @@ export function AuthProvider({ children }) {
       const actualRole = docSnap.data().role;
       if (expectedRole && actualRole !== expectedRole) {
         await signOut(auth);
-        throw new Error(`This Google account is registered as a ${actualRole}. Please use the correct portal.`);
+        await supabase.auth.signOut();
+        throw new Error(`This Google account is registered as "${actualRole}". Please use the ${actualRole} portal to log in.`);
       }
       setUser({ id: firebaseUser.uid, email: firebaseUser.email, ...docSnap.data() });
     }
@@ -266,7 +397,22 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginAsDemo = (role) => {
+    const demoUser = {
+      id: `demo-${role}`,
+      email: `demo@${role}.ai`,
+      role: role,
+      full_name: `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}`,
+      demo_mode: true
+    };
+    setUser(demoUser);
+    setToken(demoUser.id);
+    localStorage.setItem('sehat_demo_mode', role);
+    setLoading(false);
+  };
+
   const logout = async () => {
+    localStorage.removeItem('sehat_demo_mode');
     await signOut(auth);
     await supabase.auth.signOut();
     setUser(null);
@@ -302,7 +448,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogle, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogle, loginAsDemo, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

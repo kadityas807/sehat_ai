@@ -58,7 +58,10 @@ const FACILITIES = [
     }
 ];
 
+import { useAuth } from '@/contexts/AuthContext';
+
 export default function PatientAppointments({ onNavigate }) {
+    const { user } = useAuth();
     const today = startOfDay(new Date());
     const [baseDate, setBaseDate] = useState(today);
     const [selectedDate, setSelectedDate] = useState(today);
@@ -301,9 +304,17 @@ export default function PatientAppointments({ onNavigate }) {
                                               localStorage.setItem('sehat_appointments', JSON.stringify([...existing, newApt]));
                                               
                                               try {
-                                                // Get a demo patient to assign this appointment to
-                                                const { data: pts } = await supabase.from('patients').select('id, full_name').limit(1);
-                                                const patientId = pts?.[0]?.id;
+                                                let patientId = null;
+                                                let emailToUse = "patient@example.com";
+                                                
+                                                if (user?.demo_mode) {
+                                                  // Get a demo patient to assign this appointment to
+                                                  const { data: pts } = await supabase.from('patients').select('id, full_name').limit(1);
+                                                  patientId = pts?.[0]?.id;
+                                                } else {
+                                                  patientId = user?.id;
+                                                  emailToUse = user?.email || emailToUse;
+                                                }
                                                 
                                                 if (patientId) {
                                                   // Convert "11:00 AM" or "02:30 PM" to 24h format for the Date object
@@ -337,7 +348,7 @@ export default function PatientAppointments({ onNavigate }) {
                                               // Send Email
                                               sendEmailNotification({
                                                   type: "appointment",
-                                                  email: "patient@example.com",
+                                                  email: emailToUse,
                                                   facility: fac.name,
                                                   date: selectedDate,
                                                   time: selectedSlot

@@ -148,17 +148,19 @@ export const hospitalService = {
   },
 
   async getMyHospital() {
-    // 🔥 HACKATHON OVERRIDE: 
-    // Always return the Master Seeded Hospital so the user sees all demo data!
     const MASTER_HOSPITAL_ID = '11111111-1111-1111-1111-111111111111';
-    const { data: masterHospital } = await supabase
-      .from('hospitals')
-      .select('*')
-      .eq('id', MASTER_HOSPITAL_ID)
-      .limit(1);
-      
-    if (masterHospital && masterHospital[0]) {
-      return masterHospital[0];
+    
+    // In demo mode, return the master seeded hospital for presentation purposes
+    const isDemoMode = localStorage.getItem('sehat_demo_mode');
+    if (isDemoMode) {
+      const { data: masterHospital } = await supabase
+        .from('hospitals')
+        .select('*')
+        .eq('id', MASTER_HOSPITAL_ID)
+        .limit(1);
+      if (masterHospital && masterHospital[0]) {
+        return masterHospital[0];
+      }
     }
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
