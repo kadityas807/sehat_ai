@@ -68,13 +68,13 @@ export default function HospitalDashboard() {
       setLoading(true);
       const data = await patientService.getPatients(dbId);
       setPatients(data || []);
-      
+
       // Calculate stats
       const today = new Date().toDateString();
       setStats({
         total: data.length,
         critical: data.filter(p => p.medical_profile?.hasRecentInjury || p.severity === 'Critical').length,
-        admitted: data.filter(p => p.status === 'Admitted').length || Math.floor(data.length * 0.3),
+        admitted: data.filter(p => p.status === 'Admitted').length,
         today: data.filter(p => p.created_at && new Date(p.created_at).toDateString() === today).length,
       });
     } catch (err) {
@@ -285,13 +285,13 @@ export default function HospitalDashboard() {
                         Managing <strong>{patients.length}</strong> registered lives at {hospital.shortName}
                       </p>
                     </div>
-                    
+
                     {/* Search & Filter Controls */}
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           placeholder="Search patients..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
@@ -299,7 +299,7 @@ export default function HospitalDashboard() {
                           style={{ borderColor: statusFilter !== 'all' ? primaryColor : undefined }}
                         />
                       </div>
-                      <select 
+                      <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
                         className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none shadow-sm cursor-pointer"
@@ -316,7 +316,7 @@ export default function HospitalDashboard() {
                     const filtered = patients.filter(p => {
                       const mp = p.medical_profile || p.medicalProfile || {};
                       const nameMatch = String(p.full_name || mp.emergencyContact || p.id).toLowerCase().includes(searchQuery.toLowerCase());
-                      const statusMatch = statusFilter === 'all' || 
+                      const statusMatch = statusFilter === 'all' ||
                         (statusFilter === 'critical' && mp.hasRecentInjury) ||
                         (statusFilter === 'admitted' && (p.status === 'admitted' || p.status === 'Admitted')) ||
                         (statusFilter === 'stable' && !mp.hasRecentInjury && (!mp.chronicConditions || mp.chronicConditions === 'None'));
@@ -329,7 +329,7 @@ export default function HospitalDashboard() {
                           <span className="material-symbols-outlined text-5xl text-slate-300 mb-4 block">search_off</span>
                           <h3 className="text-lg font-bold text-slate-500 mb-2">No matching patients</h3>
                           <p className="text-sm text-slate-400">Try adjusting your search query or filters.</p>
-                          <button 
+                          <button
                             onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}
                             className="mt-4 text-xs font-bold underline"
                             style={{ color: primaryColor }}
@@ -431,7 +431,7 @@ export default function HospitalDashboard() {
                       <p className="text-indigo-100 text-sm mb-6 max-w-md">
                         Based on current admission rates and seasonal Delhi health trends (Air Quality: 180 AQI), we predict a <strong>15% increase</strong> in respiratory admissions over the next 72 hours.
                       </p>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
                           <p className="text-[10px] font-bold text-indigo-200 uppercase mb-1">Predicted Peak</p>

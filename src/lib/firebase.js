@@ -27,17 +27,23 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
 
-// Initialize App Check (reCAPTCHA v3)
-if (import.meta.env.VITE_RECAPTCHA_SITE_KEY && typeof window !== 'undefined') {
-  // Pass true for debug token during development
-  if (import.meta.env.DEV) {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+// Initialize App Check (reCAPTCHA v3) only if key is valid and not placeholder
+if (import.meta.env.VITE_RECAPTCHA_SITE_KEY && 
+    import.meta.env.VITE_RECAPTCHA_SITE_KEY !== '123456789' && 
+    typeof window !== 'undefined') {
+  try {
+    // Pass true for debug token during development
+    if (import.meta.env.DEV) {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+    
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
+  } catch (err) {
+    console.warn("Firebase App Check failed to initialize:", err.message);
   }
-  
-  initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
-    isTokenAutoRefreshEnabled: true
-  });
 }
 
 export default app;

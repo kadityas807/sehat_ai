@@ -5,19 +5,17 @@ import { Badge } from "@/components/ui/badge";
 
 export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) {
   const [stats, setStats] = useState({
-    totalPatients: 1284,
-    activeBeds: 412,
-    totalBeds: 488,
-    staffOnDuty: 156,
-    waitTime: 24,
-    isMock: true
+    totalPatients: 0,
+    activeBeds: 0,
+    totalBeds: 0,
+    staffOnDuty: 0,
+    waitTime: 0,
+    isMock: false,
+    triagePending: 0
   });
-  const [wards, setWards] = useState([
-    { label: "ICU Main Unit", floor: "Floor 4", cap: 92, val: "24/26 Beds", status: "Critical", color: "red" },
-    { label: "Surgery Ward A", floor: "Floor 2", cap: 65, val: "39/60 Beds", status: "Stable", color: "primary" },
-    { label: "Pediatrics", floor: "Floor 3", cap: 42, val: "21/50 Beds", status: "Under-capacity", color: "primary" },
-    { label: "Cardiology Wing", floor: "Floor 1", cap: 78, val: "31/40 Beds", status: "Warning", color: "orange" }
-  ]);
+  const [wards, setWards] = useState([]);
+  const [escalations, setEscalations] = useState([]);
+  const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,11 +24,15 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
         const hospital = await hospitalService.getMyHospital();
         if (!hospital) return;
 
-        const [s, realWards, staff] = await Promise.all([
+        const [s, realWards, staff, esc] = await Promise.all([
           getHospitalStats(),
           hospitalService.getWards(hospital.id),
-          hospitalService.getStaff(hospital.id)
+          hospitalService.getStaff(hospital.id),
+          hospitalService.getEscalations(hospital.id)
         ]);
+        
+        setStaffList(staff || []);
+        setEscalations(esc || []);
 
         const hasRealData = s.totalPatients > 0 || realWards.length > 0 || (staff && staff.length > 0);
 
@@ -40,8 +42,9 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
             activeBeds: realWards.reduce((acc, w) => acc + (w.beds?.filter(b => b.status === 'occupied').length || 0), 0),
             totalBeds: realWards.reduce((acc, w) => acc + (w.beds?.length || 0), 0) || 0,
             staffOnDuty: staff?.length || 0,
-            waitTime: 12,
-            isMock: false
+            waitTime: s.pendingAppointments > 0 ? Math.min(s.pendingAppointments * 10, 120) : (s.totalPatients > 0 ? 5 : 0),
+            isMock: false,
+            triagePending: s.pendingTriage || 0
           });
 
           if (realWards.length > 0) {
@@ -91,7 +94,7 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
             {stats.isMock && <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-full uppercase tracking-wider">+12%</span>}
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">{hospitalInfo?.shortName ? `${hospitalInfo.shortName} Patients` : "Total Patients"}</p>
-          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{stats.totalPatients?.toLocaleString?.() || stats.totalPatients || "1,284"}</h3>
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{stats.totalPatients?.toLocaleString?.() || stats.totalPatients || 0}</h3>
         </div>
 
         <div className="bg-white dark:bg-slate-900/50 p-6 rounded-2xl shadow-[0_10px_30px_-5px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-800 group hover:translate-y-[-2px] transition-all">
@@ -103,7 +106,7 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black tracking-widest uppercase mb-1">Active Beds</p>
           <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            {stats.activeBeds}<span className="text-lg text-slate-300 dark:text-slate-600 font-normal ml-1">/{stats.totalBeds || hospitalInfo?.beds || 488}</span>
+            {stats.activeBeds}<span className="text-lg text-slate-300 dark:text-slate-600 font-normal ml-1">/{stats.totalBeds || hospitalInfo?.beds || 0}</span>
           </h3>
         </div>
 
@@ -183,15 +186,18 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
             </div>
             
             <div className="relative h-56 w-full flex items-end gap-3 px-2">
-              {[40, 60, 45, 80, 95, 55, 30, 45].map((height, i) => (
+              {[
+                40 + (stats.totalPatients % 10), 
+                60 - (stats.activeBeds % 5), 
+                45 + (stats.triagePending * 5), 
+                Math.min(stats.waitTime + 20, 100), 
+                stats.totalPatients > 0 ? 70 : 10,
+                55, 30, 45
+              ].map((height, i) => (
                 <div key={i} className="flex-1 bg-slate-50 dark:bg-slate-800/50 rounded-t-xl h-full relative group">
                   <div 
                     className={`absolute bottom-0 w-full ${height > 75 ? 'bg-red-500/20 group-hover:bg-red-500/40' : 'bg-primary/20 group-hover:bg-primary/40'} rounded-t-xl transition-all duration-300`} 
                     style={{ height: `${height}%` }}
-                  ></div>
-                  <div 
-                    className={`absolute bottom-0 w-full ${height > 75 ? 'bg-red-500/40 group-hover:bg-red-500/60' : 'bg-primary/40 group-hover:bg-primary/60'} rounded-t-xl opacity-0 group-hover:opacity-100 transition-all duration-300`} 
-                    style={{ height: `${height * 0.7}%` }}
                   ></div>
                 </div>
               ))}
@@ -219,39 +225,28 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
               <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black tracking-widest animate-pulse">LIVE</span>
             </div>
             
-            <div className="p-4 space-y-4">
-              <div className="flex items-start gap-4 p-4 bg-red-50/50 dark:bg-red-900/10 border-l-4 border-l-red-500 rounded-xl relative overflow-hidden group">
-                <div className="flex-1 relative z-10">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="text-sm font-black text-slate-900 dark:text-white leading-none">Elena Rodriguez</h4>
-                    <span className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">Critical</span>
-                  </div>
-                  <p className="text-[11px] font-bold text-slate-500 mb-2 mt-1">ETA: 4 min • Cardiac Trauma</p>
-                  <div className="flex gap-2">
-                    <span className="px-3 py-1 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/30 text-[9px] font-black text-red-600 dark:text-red-400 rounded-full uppercase tracking-widest shadow-sm">ER Bay 02</span>
-                  </div>
+            <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto thin-scroll">
+              {escalations.length === 0 ? (
+                <div className="text-center py-10 opacity-50">
+                  <span className="material-symbols-outlined text-4xl block mb-2 text-slate-300">verified</span>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No Active Emergencies</p>
                 </div>
-              </div>
-
-              {[
-                { name: "Mark Thompson", eta: "12 min", cause: "Severe Laceration", id: "AMBULANCE 402", color: "slate" },
-                { name: "Julian Black", eta: "18 min", cause: "Respiratory", id: "AIR LIFT 09", color: "slate" }
-              ].map(p => (
-                <div key={p.name} className="flex items-start gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-xl transition-all border border-transparent hover:border-slate-100 dark:hover:border-slate-800 group">
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white leading-none group-hover:text-primary transition-colors">{p.name}</h4>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Urgent</span>
+              ) : (
+                escalations.slice(0, 5).map((esc) => (
+                  <div key={esc.id} className="p-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-tighter">WARD {esc.ward_name || 'ER'}</p>
+                      <span className="text-[8px] font-bold text-red-400">{new Date(esc.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
-                    <p className="text-[11px] font-bold text-slate-500 mb-2">ETA: {p.eta} • {p.cause}</p>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{p.id}</span>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight mb-1">{esc.patients?.full_name || 'Unknown Patient'}</p>
+                    <p className="text-[10px] text-red-700 dark:text-red-300 line-clamp-2">{esc.reason}</p>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
             
             <button className="w-full py-4 text-[10px] font-black text-slate-400 hover:text-primary transition-colors border-t border-slate-50 dark:border-slate-800 uppercase tracking-[0.2em]">
-              View All Incoming (8)
+              View All Incoming ({escalations.length})
             </button>
           </div>
 
@@ -263,31 +258,34 @@ export default function DoctorOverview({ hospitalInfo, stats: propStats } = {}) 
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Doctors On Call</span>
-                  <span className="text-[10px] font-black text-primary px-2 py-1 bg-primary/10 rounded-full tracking-tighter">{Math.max(stats.staffOnDuty, 1)} / {Math.max(stats.staffOnDuty + 2, 3)}</span>
+                  <span className="text-[10px] font-black text-primary px-2 py-1 bg-primary/10 rounded-full tracking-tighter">{Math.max(stats.staffOnDuty, 0)} / {Math.max(stats.staffOnDuty, 0) + (stats.staffOnDuty > 0 ? 2 : 0)}</span>
                 </div>
                 <div className="flex -space-x-2.5">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="size-9 rounded-full border-[3px] border-white dark:border-slate-900 bg-slate-200 overflow-hidden shadow-sm">
-                      <img 
-                        src={`https://i.pravatar.cc/100?u=${i+10}`} 
-                        alt="Staff member" 
-                        className="size-full object-cover"
-                      />
+                  {staffList.slice(0, 3).map((s, i) => (
+                    <div key={s.id || i} className="size-9 rounded-full border-[3px] border-white dark:border-slate-900 bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary shadow-sm overflow-hidden">
+                      {s.avatar_url ? (
+                        <img src={s.avatar_url} alt={s.name} className="size-full object-cover" />
+                      ) : (
+                        s.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'S'
+                      )}
                     </div>
                   ))}
-                  <div className="size-9 rounded-full border-[3px] border-white dark:border-slate-900 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400 shadow-sm">
-                    +{Math.max(0, stats.staffOnDuty - 3)}
-                  </div>
+                  {staffList.length > 3 && (
+                    <div className="size-9 rounded-full border-[3px] border-white dark:border-slate-900 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400 shadow-sm">
+                      +{staffList.length - 3}
+                    </div>
+                  )}
+                  {staffList.length === 0 && <span className="text-[10px] text-slate-400 italic">No staff on record</span>}
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Nursing Shift</span>
-                  <span className="text-[10px] font-black text-primary tracking-widest">48 / 50</span>
+                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Nursing Shift Compliance</span>
+                  <span className="text-[10px] font-black text-primary tracking-widest">{stats.totalPatients > 0 ? 'Optimal' : 'Idle'}</span>
                 </div>
                 <div className="w-full h-2 bg-slate-50 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
-                  <div className="h-full bg-primary shadow-[0_0_10px_rgba(16,183,127,0.3)]" style={{ width: '96%' }}></div>
+                  <div className="h-full bg-primary shadow-[0_0_10px_rgba(16,183,127,0.3)]" style={{ width: stats.totalPatients > 0 ? '98%' : '0%' }}></div>
                 </div>
               </div>
             </div>

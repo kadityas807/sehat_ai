@@ -13,10 +13,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
-const MOCK_DISPATCHES = [
-  { id: 'm1', patient_name: 'Eleanor Vance', location: '123 Maple St, Springfield', status: 'Dispatched', unit_number: 'Medic-42', priority: 'Critical', eta_minutes: 4, reason: 'Sustained HR > 110 bpm', dispatched_at: new Date(Date.now() - 180000).toISOString() },
-  { id: 'm2', patient_name: 'Marcus Johnson', location: '45 Park Avenue, Mumbai', status: 'Completed', unit_number: 'Medic-17', priority: 'High', eta_minutes: null, reason: 'Fall injury', dispatched_at: new Date(Date.now() - 86400000).toISOString() },
-];
 
 function timeAgo(str) {
   if (!str) return '';
@@ -31,7 +27,6 @@ export default function DoctorAmbulance() {
   const { user } = useAuth();
   const [dispatches, setDispatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isMock, setIsMock] = useState(false);
   const [hospitalId, setHospitalId] = useState(null);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [processing, setProcessing] = useState({});
@@ -45,10 +40,10 @@ export default function DoctorAmbulance() {
       if (!h) return;
       setHospitalId(h.id);
       const data = await ambulanceService.getDispatches(h.id);
-      if (data.length > 0) { setDispatches(data); setIsMock(false); }
-      else { setDispatches(MOCK_DISPATCHES); setIsMock(true); }
+      if (data.length > 0) { setDispatches(data); }
+      else { setDispatches([]); }
     } catch {
-      setDispatches(MOCK_DISPATCHES); setIsMock(true);
+      setDispatches([]);
     } finally {
       setLoading(false);
     }
@@ -69,12 +64,6 @@ export default function DoctorAmbulance() {
 
   const handleDispatch = async (e) => {
     e.preventDefault();
-    if (isMock) {
-      const fake = { id: `m${Date.now()}`, ...form, status: 'Dispatched', dispatched_at: new Date().toISOString() };
-      setDispatches(prev => [fake, ...prev]);
-      setDispatchOpen(false); setForm({ patient_name: '', location: '', unit_number: '', priority: 'High', reason: '', eta_minutes: '' });
-      return;
-    }
     setProcessing(p => ({ ...p, dispatch: true }));
     try {
       await ambulanceService.createDispatch({ ...form, eta_minutes: form.eta_minutes ? parseInt(form.eta_minutes) : null, hospital_id: hospitalId });
@@ -86,10 +75,6 @@ export default function DoctorAmbulance() {
   };
 
   const handleComplete = async (d) => {
-    if (isMock) {
-      setDispatches(prev => prev.map(x => x.id === d.id ? { ...x, status: 'Completed' } : x));
-      return;
-    }
     setProcessing(p => ({ ...p, [d.id]: true }));
     try {
       await ambulanceService.updateDispatchStatus(d.id, 'Completed');
@@ -105,8 +90,7 @@ export default function DoctorAmbulance() {
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-          EMS &amp; Dispatch
-          {isMock && <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-600 font-black">Demo</span>}
+          EMS & Dispatch
         </h2>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={load} className="gap-1 font-black text-[10px] uppercase tracking-wide">

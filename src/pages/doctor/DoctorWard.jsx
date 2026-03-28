@@ -90,30 +90,7 @@ CREATE POLICY "Beds manageable by admins" ON public.beds FOR ALL USING (EXISTS (
     }
   };
 
-    const MOCK_WARDS = [
-    {
-      id: 'mock-icu',
-      name: 'ICU Main Unit',
-      beds: [
-        { id: 'm1', bed_number: '101', status: 'occupied', patients: { full_name: 'Elena Rodriguez' } },
-        { id: 'm2', bed_number: '102', status: 'available' },
-        { id: 'm3', bed_number: '103', status: 'occupied', patients: { full_name: 'Robert Fox' } },
-        { id: 'm4', bed_number: '104', status: 'available' },
-      ]
-    },
-    {
-      id: 'mock-gen',
-      name: 'General Ward A',
-      beds: [
-        { id: 'm5', bed_number: '201', status: 'available' },
-        { id: 'm6', bed_number: '202', status: 'occupied', patients: { full_name: 'Mark Thompson' } },
-        { id: 'm7', bed_number: '203', status: 'available' },
-        { id: 'm8', bed_number: '204', status: 'available' },
-      ]
-    }
-  ];
-
-  const displayWards = wards.length > 0 ? wards : MOCK_WARDS;
+  const displayWards = wards;
   const isMock = wards.length === 0;
 
   // Flatten all beds for stats
@@ -248,7 +225,7 @@ CREATE POLICY "Beds manageable by admins" ON public.beds FOR ALL USING (EXISTS (
               <span className="text-[10px] px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-600 uppercase font-black">Demo Mode</span>
             )}
           </h2>
-          <p className="text-slate-500 mt-1">Real-time occupancy tracking across ICU, General, and Special care units</p>
+          <p className="text-slate-500 mt-1 uppercase text-[10px] font-black tracking-widest ">Real-time occupancy tracking across ICU, General, and Special care units</p>
         </div>
         
         {isMock && (

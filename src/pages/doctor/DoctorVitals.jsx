@@ -6,66 +6,17 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { notificationService } from '@/database/notificationService';
 import { hospitalService } from '@/database/hospitalService';
+import { patientService } from '@/database/patientService'; // Added missing import
 import { useAuth } from '@/contexts/AuthContext';
 
 
-const initialPatients = [
-  {
-    id: '8829',
-    initials: 'JD',
-    name: 'John Doe',
-    ward: '402-03',
-    status: 'Critical',
-    hr: 142,
-    spO2: 92,
-    bp: '155/98',
-    temp: 38.2,
-    minHr: 64,
-    maxHr: 158,
-    avgHr: 88,
-    variability: 'High',
-  },
-  {
-    id: '9241',
-    initials: 'EW',
-    name: 'Elena Wright',
-    ward: '105-12',
-    status: 'Monitoring',
-    hr: 78,
-    spO2: 99,
-    bp: '122/80',
-    temp: 36.8,
-    minHr: 60,
-    maxHr: 85,
-    avgHr: 72,
-    variability: 'Normal',
-  },
-  {
-    id: '4120',
-    initials: 'MS',
-    name: 'Marcus Smith',
-    ward: '202-01',
-    status: 'Monitoring',
-    hr: 82,
-    spO2: 98,
-    bp: '118/76',
-    temp: 37.1,
-    minHr: 65,
-    maxHr: 90,
-    avgHr: 75,
-    variability: 'Normal',
-    wearable: { battery: 82, signal: 'Strong', firmware: 'v2.4.1' },
-    labResults: [
-      { date: '2026-03-10', test: 'WBC', val: '14.2', unit: '10^3/µL', status: 'High', aiInsight: 'Elevation suggests active infection or inflammatory response.' },
-      { date: '2026-03-10', test: 'CRP', val: '45.0', unit: 'mg/L', status: 'Critical', aiInsight: 'Marked elevation indicating significant systemic inflammation.' }
-    ]
-  }
-];
+// Removed initialPatients hardcoded array. Data is now fetched from the database.
 
 export default function DoctorVitals() {
   const { user } = useAuth();
-  const [patients, setPatients] = useState(initialPatients);
-  const [selectedPatientId, setSelectedPatientId] = useState('8829');
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [isAlertVisible, setIsAlertVisible] = useState(true);
   const [timeRange, setTimeRange] = useState('1H');
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -73,11 +24,47 @@ export default function DoctorVitals() {
   const hospitalIdRef = useRef(null);
   const alertedRef = useRef(new Set()); // track IDs already alerted
 
-  // Load hospitalId for notification push
+  // Load hospitalId and Patients
   useEffect(() => {
-    hospitalService.getMyHospital()
-      .then(h => { if (h) hospitalIdRef.current = h.id; })
-      .catch(() => {});
+    const loadPatients = async () => {
+      try {
+        setLoading(true);
+        const h = await hospitalService.getMyHospital();
+        if (h) {
+          hospitalIdRef.current = h.id;
+          const data = await patientService.getPatients(h.id);
+          
+          // Map real patient data to the UI structure
+          const mapped = data.map(p => ({
+            id: p.id,
+            name: p.full_name,
+            initials: p.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || '??',
+            ward: p.ward_info?.name || 'Triage',
+            status: p.status || 'Monitoring',
+            hr: p.vitals?.heart_rate || 72,
+            spO2: p.vitals?.spo2 || 98,
+            bp: p.vitals?.blood_pressure || '120/80',
+            temp: p.vitals?.temperature_c || 37.0,
+            minHr: 60,
+            maxHr: 100,
+            avgHr: 75,
+            variability: 'Normal',
+            ...p
+          }));
+          
+          setPatients(mapped);
+          if (mapped.length > 0 && !selectedPatientId) {
+            setSelectedPatientId(mapped[0].id);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load patient vitals:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPatients();
   }, [user]);
 
   // Simulate real-time subtle vital fluctuations + threshold alerts
@@ -161,8 +148,106 @@ export default function DoctorVitals() {
     setIsAddOpen(false);
   };
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="size-12 border-4 border-[#00b289] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-medium">Loading patient vitals...</p>
+      </div>
+    );
+  }
+
   const selectedPatient = patients.find(p => p.id === selectedPatientId) || patients[0];
   const criticalCount = patients.filter(p => p.status === 'Critical').length;
+  const criticalPatient = patients.find(p => p.status === 'Critical');
+
+  if (patients.length > 0 && !selectedPatient) {
+    return (
+       <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="size-12 border-4 border-[#00b289] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-medium">Synchronizing patient data...</p>
+      </div>
+    );
+  }
+
+  // Handle empty state gracefully
+  if (patients.length === 0) {
+    return (
+      <div className="flex flex-col gap-8 max-w-[1400px] mx-auto py-20 px-4">
+        <div className="bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-3xl p-20 text-center shadow-xl">
+          <div className="size-24 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="material-symbols-outlined text-6xl text-slate-300">person_off</span>
+          </div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">No Active Monitors</h2>
+          <p className="text-slate-500 mb-8 max-w-md mx-auto">Vitals monitoring is empty because no patients are registered at your hospital yet. Once patients are admitted, their real-time telemetry will appear here.</p>
+          <div className="flex justify-center gap-4">
+            <button 
+              onClick={() => setIsAddOpen(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-[#00b289] text-white rounded-xl text-sm font-black shadow-lg shadow-[#00b289]/20 hover:scale-105 transition-all"
+            >
+              <span className="material-symbols-outlined">add</span>
+              MANUALLY ADD MONITOR
+            </button>
+          </div>
+        </div>
+        
+        {/* Add Monitor Dialog remains accessible */}
+        {isAddOpen && (
+           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+           <DialogContent className="sm:max-w-[425px]">
+             <DialogHeader>
+               <DialogTitle>Add Vitals Monitor</DialogTitle>
+               <DialogDescription>
+                 Connect a new patient to the centralized tracking board.
+               </DialogDescription>
+             </DialogHeader>
+             <form onSubmit={handleAddMonitor}>
+               <div className="grid gap-4 py-4">
+                 <div className="grid grid-cols-4 items-center gap-4">
+                   <Label htmlFor="name" className="text-right">Name</Label>
+                   <Input 
+                     id="name" 
+                     className="col-span-3" 
+                     placeholder="e.g. Thomas Wayne"
+                     value={newPatient.name}
+                     onChange={(e) => setNewPatient({...newPatient, name: e.target.value})}
+                     required 
+                   />
+                 </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                   <Label htmlFor="id" className="text-right">Patient ID</Label>
+                   <Input 
+                     id="id" 
+                     className="col-span-3" 
+                     placeholder="e.g. 5582"
+                     value={newPatient.id}
+                     onChange={(e) => setNewPatient({...newPatient, id: e.target.value})}
+                     required 
+                   />
+                 </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                   <Label htmlFor="ward" className="text-right">Ward</Label>
+                   <Input 
+                     id="ward" 
+                     className="col-span-3" 
+                     placeholder="e.g. ER-02"
+                     value={newPatient.ward}
+                     onChange={(e) => setNewPatient({...newPatient, ward: e.target.value})}
+                     required 
+                   />
+                 </div>
+               </div>
+               <DialogFooter>
+                 <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+                 <Button type="submit" className="bg-[#00b289] text-white hover:bg-[#00b289]/90">Connect Monitor</Button>
+               </DialogFooter>
+             </form>
+           </DialogContent>
+         </Dialog>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8 max-w-[1400px] mx-auto pb-10">
@@ -188,14 +273,14 @@ export default function DoctorVitals() {
       </div>
 
       {/* Critical Alerts */}
-      {isAlertVisible && (
+      {isAlertVisible && criticalPatient && (
         <section className="bg-red-50 border border-red-100 dark:bg-red-900/10 dark:border-red-900/20 rounded-xl p-4 flex items-center gap-4 transition-all">
           <div className="bg-red-500 text-white size-10 rounded-full flex items-center justify-center animate-pulse shrink-0">
             <span className="material-symbols-outlined">emergency_home</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="text-red-900 dark:text-red-400 font-bold text-sm truncate">Critical Alert: Ward 402 - Bed 03</h4>
-            <p className="text-red-700 dark:text-red-300/80 text-sm truncate">Tachycardia detected in Patient John Doe (ID: 8829). HR exceeded 140 BPM for {'>'}2 mins. Immediate review required.</p>
+            <h4 className="text-red-900 dark:text-red-400 font-bold text-sm truncate">Critical Alert: Ward {criticalPatient.ward}</h4>
+            <p className="text-red-700 dark:text-red-300/80 text-sm truncate">Abnormal vitals detected in Patient {criticalPatient.name} (ID: {criticalPatient.id?.slice(-6).toUpperCase()}). Immediate review required.</p>
           </div>
           <div className="flex gap-2 shrink-0">
             <button 
@@ -206,7 +291,7 @@ export default function DoctorVitals() {
             </button>
             <button 
               onClick={() => {
-                setSelectedPatientId('8829');
+                setSelectedPatientId(criticalPatient.id);
                 document.getElementById('trends-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-500/20 hover:bg-red-700 transition-colors"
@@ -227,7 +312,14 @@ export default function DoctorVitals() {
             </span>
           )}
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        
+        {patients.length === 0 ? (
+          <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-20 text-center">
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No Patients Monitored</p>
+            <p className="text-slate-500 text-[10px] mt-2">Registers patients to this hospital to begin monitoring clinical vitals.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {patients.map(patient => {
             const isCritical = patient.status === 'Critical';
             const isSelected = patient.id === selectedPatientId;
@@ -250,15 +342,15 @@ export default function DoctorVitals() {
                 )}
                 
                 <div className="flex items-center gap-4 mb-6">
-                  <div className={`size-12 rounded-xl bg-${isCritical ? 'slate-100' : '[#00b289]/10'} flex items-center justify-center font-bold text-${isCritical ? 'slate-400' : '[#00b289]'}`}>
+                  <div className={`size-12 rounded-xl bg-${isCritical ? 'red-100' : '[#00b289]/10'} flex items-center justify-center font-bold text-${isCritical ? 'red-500' : '[#00b289]'}`}>
                     {patient.initials}
                   </div>
                   <div>
                     <h4 className="font-bold text-slate-900 dark:text-white leading-tight">{patient.name}</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">ID: {patient.id} • Ward {patient.ward}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">ID: {String(patient.id).slice(-6).toUpperCase()} • Ward {patient.ward}</p>
                   </div>
                   <div className="ml-auto text-right">
-                    <span className={`text-[10px] font-bold text-${primaryColor} uppercase tracking-widest bg-${isCritical ? 'red-50' : '[#00b289]/10'} px-2 py-1 rounded-md`}>
+                    <span className={`text-[10px] font-bold text-${isCritical ? 'red-600' : '[#00b289]'} uppercase tracking-widest bg-${isCritical ? 'red-50' : '[#00b289]/10'} px-2 py-1 rounded-md`}>
                       {patient.status}
                     </span>
                   </div>
@@ -316,6 +408,7 @@ export default function DoctorVitals() {
             );
           })}
         </div>
+      )}
       </section>
 
       {/* Main Chart and Device Status */}
