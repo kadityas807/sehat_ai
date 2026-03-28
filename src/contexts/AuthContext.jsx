@@ -112,7 +112,7 @@ export function AuthProvider({ children }) {
     } else {
       throw new Error('User profile missing in database');
     }
-    
+
     // Auth state listener handles setUser
     return userCredential.user;
   };
@@ -123,7 +123,26 @@ export function AuthProvider({ children }) {
    */
   const loginWithGoogle = async (expectedRole, extraData = {}) => {
     const provider = new GoogleAuthProvider();
-    const userCredential = await signInWithPopup(auth, provider);
+    // Force account selection to prevent sign-in loops or "silent" failures
+    provider.setCustomParameters({ 
+      prompt: 'select_account'
+    });
+
+    console.log(`Starting Google login for role: ${expectedRole}`);
+    
+    let userCredential;
+    try {
+      userCredential = await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error("Google Popup Error:", err);
+      if (err.code === 'auth/popup-blocked') {
+        throw new Error('Pop-up was blocked. Please allow pop-ups for this site.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        throw new Error(`This domain (${window.location.hostname}) is not authorized in Firebase Console.`);
+      }
+      throw err;
+    }
+
     const firebaseUser = userCredential.user;
     
     // Check if Firestore profile exists
